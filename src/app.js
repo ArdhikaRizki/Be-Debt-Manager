@@ -2,10 +2,10 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
-const xss = require('xss-clean');
 const hpp = require('hpp');
 const rateLimit = require('express-rate-limit');
 const { ZodError } = require('zod');
+const authRouter = require('./routes/authRoutes');
 
 require('dotenv').config();
 
@@ -14,10 +14,10 @@ const app = express();
 // 1. GLOBAL MIDDLEWARES (Security & Utility)
 app.use(helmet()); // Security headers
 app.use(express.json({ limit: '10kb' })); // Body parser
-app.use(xss()); // Mencegah XSS (Input script jahat)
 app.use(hpp()); // Mencegah Parameter Pollution
 app.use(cors()); // Izin akses untuk Flutter
 app.use(morgan('dev')); // Logger terminal
+app.use('/api/v1/auth', authRouter);
 
 // Limit request (Cegah spam API)
 const limiter = rateLimit({
