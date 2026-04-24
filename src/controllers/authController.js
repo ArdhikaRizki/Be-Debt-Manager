@@ -1,40 +1,120 @@
-const { User } = require('../../models');
+const { User, EmailVerification } = require('../../models');
 const { hashPassword, comparePassword, generateToken } = require('../utils/auth');
 const sendEmail = require('../utils/sendEmail');
 
+
+exports.requestOtp = async (req, res, next) => {
+  try {
+    const email = String(req.body.email || '').trim().toLowerCase();
+
+    if (!email) {
+      return res.status(400).json({ status: 'fail', message: 'Email wajib diisi.' });
+    }
+
+    // 1. Pastikan email belum terdaftar di tabel utama
+    const existingUser = await User.findOne({ where: { email } });
+    if (existingUser) {
+      return res.status(400).json({ status: 'fail', message: 'Email sudah terdaftar. Silakan login.' });
+    }
+
+    // 2. Generate OTP & Expired (10 Menit)
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    // 3. Simpan/Update ke Tabel Sementara (Upsert)
+    let verification = await EmailVerification.findOne({ where: { email } });
+    if (verification) {
+      verification.otp_code = otpCode;
+      verification.expires_at = expiresAt;
+      verification.is_verified = false;
+      await verification.save();
+    } else {
+      await EmailVerification.create({ email, otp_code: otpCode, expires_at: expiresAt, is_verified: false });
+    }
+
+    // 4. Kirim Email
+    await sendEmail({
+      email,
+      subject: 'Kode OTP Kamu',
+      message: `Kode OTP kamu adalah: ${otpCode}. Berlaku 10 menit.`
+    });
+
+    res.status(200).json({ status: 'success', message: 'OTP berhasil dikirim ke email.' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.verifyOtp = async (req, res, next) => {
+  try {
+    const email = String(req.body.email || '').trim().toLowerCase();
+    const otp = String(req.body.otp ?? req.body.otp_code ?? '').trim();
+
+    if (!email || !otp) {
+      return res.status(400).json({ status: 'fail', message: 'Email dan OTP wajib diisi.' });
+    }
+
+    const verification = await EmailVerification.findOne({ where: { email } });
+    const storedOtp = String(verification?.otp_code ?? '').trim();
+
+    if (!verification) return res.status(404).json({ status: 'fail', message: 'Minta OTP terlebih dahulu.' });
+    if (storedOtp !== otp) return res.status(400).json({ status: 'fail', message: 'OTP salah.' });
+    if (verification.expires_at < new Date()) return res.status(400).json({ status: 'fail', message: 'OTP kedaluwarsa.' });
+
+    // Tandai email ini SUDAH VALID
+    verification.is_verified = true;
+    verification.otp_code = null; // Hapus jejak OTP biar aman
+    await verification.save();
+
+    res.status(200).json({ status: 'success', message: 'Email valid! Silakan lanjut isi form pendaftaran.' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+
 exports.register = async (req, res, next) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, password } = req.body;
+    const email = String(req.body.email || '').trim().toLowerCase();
+
+    if (!email) {
+      return res.status(400).json({ status: 'fail', message: 'Email wajib diisi.' });
+    }
+    const existingEmail = await User.findOne({ where: { email } });
+    if (existingEmail) {
+      return res.status(400).json({ 
+        status: 'fail', 
+        message: 'Email sudah terdaftar. Silakan gunakan email lain atau langsung Login.' 
+      });
+    }
+
+    const existingUsername = await User.findOne({ where: { username } });
+    if (existingUsername) {
+      return res.status(400).json({ 
+        status: 'fail', 
+        message: 'Username sudah dipakai oleh pengguna lain.' 
+      });
+    }
+
+    const verification = await EmailVerification.findOne({ where: { email, is_verified: true } });
+    if (!verification) {
+      return res.status(403).json({ status: 'fail', message: 'Email belum diverifikasi. Jangan curang!' });
+    }
 
     // 1. Enkripsi password
     const hashedPassword = await hashPassword(password);
-
-    const otp = Math.floor(100000 + Math.random() * 900000).toString()
-    const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
 
     // 2. Simpan ke Postgres
     const newUser = await User.create({
       username,
       email,
       password: hashedPassword,
-      otp_code: otp,
-      otp_expires_at: otpExpires
+      is_verified: true
     });
 
-    try {
-      await sendEmail({
-        email: newUser.email,
-        subject: 'Your Verification code OTP',
-        message: `Hello ${newUser.username}, Your OTP code ${otp}. This code only available for 10 minutes. Dont give this code to anyone`
-      });
-    } catch (err) {
-      console.error('OTP email error:', err.message);
-      return res.status(500).json({
-        status: 'error',
-        message: 'Gagal mengirim OTP ke email',
-        ...(process.env.NODE_ENV === 'development' && { detail: err.message })
-      });
-    }
+    await EmailVerification.destroy({ where: { email } });
 
     // 3. Kirim respon (Jangan kirim password balik ke client)
     res.status(201).json({
@@ -47,45 +127,15 @@ exports.register = async (req, res, next) => {
   }
 };
 
-exports.verifyEmail = async (req, res, next) => {
-    try {
-    const { email, otp } = req.body;
-
-    // 1. Cari user berdasarkan email
-    const user = await User.findOne({ where: { email } });
-
-    if (!user) {
-      return res.status(404).json({ status: 'fail', message: 'User tidak ditemukan' });
-    }
-
-    // 2. Cek apakah user sudah terverifikasi sebelumnya
-    if (user.is_verified) {
-      return res.status(400).json({ status: 'fail', message: 'Email sudah terverifikasi' });
-    }
-
-    // 3. Cek kesesuaian OTP dan waktu kedaluwarsa
-    if (user.otp_code !== otp || user.otp_expires_at < new Date()) {
-      return res.status(400).json({ status: 'fail', message: 'Kode OTP salah atau sudah kedaluwarsa' });
-    }
-
-    // 4. Update data user: Set terverifikasi dan hapus OTP
-    user.is_verified = true;
-    user.otp_code = null;
-    user.otp_expires_at = null;
-    await user.save();
-
-    res.status(200).json({
-      status: 'success',
-      message: 'Email berhasil diverifikasi! Anda sekarang bisa login.',
-    });
-  } catch (error) {
-    next(error);
-  }
-}
 
 exports.login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { password } = req.body;
+    const email = String(req.body.email || '').trim().toLowerCase();
+
+    if (!email || !password) {
+      return res.status(400).json({ status: 'fail', message: 'Email dan password wajib diisi.' });
+    }
 
     // 1. Cari user berdasarkan email
     const user = await User.findOne({ where: { email } });
