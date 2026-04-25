@@ -1,6 +1,7 @@
 const { User, EmailVerification } = require('../../models');
 const { hashPassword, comparePassword, generateToken } = require('../utils/auth');
 const sendEmail = require('../utils/sendEmail');
+const crypto = require('crypto');
 
 
 exports.requestOtp = async (req, res, next) => {
@@ -17,8 +18,8 @@ exports.requestOtp = async (req, res, next) => {
       return res.status(400).json({ status: 'fail', message: 'Email sudah terdaftar. Silakan login.' });
     }
 
-    // 2. Generate OTP & Expired (10 Menit)
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    // 2. Generate OTP kriptografis & Expired (10 Menit)
+    const otpCode = crypto.randomInt(100000, 1000000).toString();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     // 3. Simpan/Update ke Tabel Sementara (Upsert)

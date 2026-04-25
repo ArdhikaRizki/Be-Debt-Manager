@@ -10,7 +10,15 @@ module.exports = (sequelize, DataTypes) => {
      * The `models/index` file will call this method automatically.
      */
     static associate(models) {
-      // define association here
+      User.hasMany(models.PaymentMethod, { foreignKey: 'userId', as: 'paymentMethods' });
+      User.hasMany(models.Debt, { foreignKey: 'userId', as: 'debts' });
+      User.hasMany(models.Debt, { foreignKey: 'otherUserId', as: 'involvedDebts' });
+      User.hasMany(models.GroupMember, { foreignKey: 'userId', as: 'groupMemberships' });
+      User.hasMany(models.DebtGroup, { foreignKey: 'createdBy', as: 'createdGroups' });
+      User.hasMany(models.GroupTransaction, { foreignKey: 'fromUserId', as: 'sentTransactions' });
+      User.hasMany(models.GroupTransaction, { foreignKey: 'toUserId', as: 'receivedTransactions' });
+      User.hasMany(models.SettlementRequest, { foreignKey: 'fromUserId', as: 'sentSettlements' });
+      User.hasMany(models.SettlementRequest, { foreignKey: 'toUserId', as: 'receivedSettlements' });
     }
   }
   User.init({

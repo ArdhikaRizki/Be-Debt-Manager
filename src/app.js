@@ -6,6 +6,11 @@ const hpp = require('hpp');
 const rateLimit = require('express-rate-limit');
 const { ZodError } = require('zod');
 const authRouter = require('./routes/authRoutes');
+const debtRouter = require('./routes/debtRoutes');
+const groupRouter = require('./routes/groupRoutes');
+const groupTransactionRouter = require('./routes/groupTransactionRoutes');
+const settlementRouter = require('./routes/settlementRoutes');
+const userRouter = require('./routes/userRoutes');
 
 require('dotenv').config();
 
@@ -17,9 +22,8 @@ app.use(express.json({ limit: '10kb' })); // Body parser
 app.use(hpp()); // Mencegah Parameter Pollution
 app.use(cors()); // Izin akses untuk Flutter
 app.use(morgan('dev')); // Logger terminal
-app.use('/api/v1/auth', authRouter);
 
-// Limit request (Cegah spam API)
+// Rate Limiter — dipasang SEBELUM route agar efektif
 const limiter = rateLimit({
   max: 100,
   windowMs: 60 * 60 * 1000,
@@ -27,9 +31,17 @@ const limiter = rateLimit({
 });
 app.use('/api', limiter);
 
-// 2. ROUTES (Nanti daftarkan di sini)
+// 2. ROUTES
+app.use('/api/v1/auth', authRouter);
+app.use('/api/v1/debts', debtRouter);
+app.use('/api/v1/groups', groupRouter);
+app.use('/api/v1/group-transactions', groupTransactionRouter);
+app.use('/api/v1/settlement-requests', settlementRouter);
+app.use('/api/v1/users', userRouter);
+
+// Health check
 app.get('/', (req, res) => {
-  res.status(200).json({ message: 'API Debt-Chain Settle is Running!' });
+  res.status(200).json({ message: 'API is Running!' });
 });
 
 // 3. GLOBAL ERROR HANDLER (Senjata Rahasia Kamu)
