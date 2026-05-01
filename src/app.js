@@ -11,6 +11,7 @@ const groupRouter = require('./routes/groupRoutes');
 const groupTransactionRouter = require('./routes/groupTransactionRoutes');
 const settlementRouter = require('./routes/settlementRoutes');
 const userRouter = require('./routes/userRoutes');
+const gameRouter = require('./routes/gameRoutes');
 
 require('dotenv').config();
 
@@ -38,6 +39,7 @@ app.use('/api/v1/groups', groupRouter);
 app.use('/api/v1/group-transactions', groupTransactionRouter);
 app.use('/api/v1/settlement-requests', settlementRouter);
 app.use('/api/v1/users', userRouter);
+app.use('/api/v1/games', gameRouter);
 
 // Health check
 app.get('/', (req, res) => {

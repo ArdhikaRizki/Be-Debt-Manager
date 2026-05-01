@@ -6,6 +6,8 @@ module.exports = (sequelize, DataTypes) => {
       DebtGroup.belongsTo(models.User, { foreignKey: 'createdBy', as: 'creator' });
       DebtGroup.hasMany(models.GroupMember, { foreignKey: 'groupId', as: 'members' });
       DebtGroup.hasMany(models.GroupTransaction, { foreignKey: 'groupId', as: 'transactions' });
+      // Game sessions dalam grup ini
+      DebtGroup.hasMany(models.GameSession, { foreignKey: 'groupId', as: 'gameSessions' });
     }
   }
   DebtGroup.init({

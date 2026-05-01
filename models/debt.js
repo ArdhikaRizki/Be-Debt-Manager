@@ -12,6 +12,8 @@ module.exports = (sequelize, DataTypes) => {
       Debt.hasOne(models.Debt, { foreignKey: 'counterpartId', as: 'counterpartOf' });
       // Settlement requests
       Debt.hasMany(models.SettlementRequest, { foreignKey: 'debtId', as: 'settlementRequests' });
+      // Game session yang menghasilkan debt ini (jika ada)
+      Debt.hasOne(models.GameSession, { foreignKey: 'debtId', as: 'gameSession' });
     }
   }
   Debt.init({
