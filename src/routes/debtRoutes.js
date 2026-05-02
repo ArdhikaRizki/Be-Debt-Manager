@@ -13,4 +13,8 @@ router.delete('/:id', ctrl.deleteDebt);
 router.patch('/:id/confirm', ctrl.confirmDebt);
 router.post('/:id/settlement-request', ctrl.requestSettlement);
 
+router.patch('/:id/reject', ctrl.rejectDebt);
+router.patch('/:id/settlement-confirm', ctrl.confirmSettlement);
+router.patch('/:id/settlement-reject', ctrl.rejectSettlement);
+
 module.exports = router;

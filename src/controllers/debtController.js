@@ -27,14 +27,23 @@ exports.listDebts = async (req, res, next) => {
 // POST /api/v1/debts — buat debt baru
 exports.createDebt = async (req, res, next) => {
   try {
-    const { amount, description, due_date, otherUsername } = req.body;
+    const { amount, description, due_date, otherUsername, otherEmail } = req.body;
 
     if (!amount) return res.status(400).json({ status: 'fail', message: 'amount wajib diisi.' });
 
     let otherUserId = null;
-    if (otherUsername) {
-      const otherUser = await User.findOne({ where: { username: otherUsername } });
-      if (!otherUser) return res.status(404).json({ status: 'fail', message: `User @${otherUsername} tidak ditemukan.` });
+    if (otherUsername || otherEmail) {
+      let otherUser;
+      
+      // Cari user berdasarkan email atau username
+      if (otherEmail) {
+        otherUser = await User.findOne({ where: { email: otherEmail } });
+        if (!otherUser) return res.status(404).json({ status: 'fail', message: `User dengan email ${otherEmail} tidak ditemukan.` });
+      } else if (otherUsername) {
+        otherUser = await User.findOne({ where: { username: otherUsername } });
+        if (!otherUser) return res.status(404).json({ status: 'fail', message: `User @${otherUsername} tidak ditemukan.` });
+      }
+      
       if (otherUser.id === req.user.id) return res.status(400).json({ status: 'fail', message: 'Tidak bisa membuat debt ke diri sendiri.' });
       otherUserId = otherUser.id;
     }
@@ -101,61 +110,122 @@ exports.deleteDebt = async (req, res, next) => {
 // PATCH /api/v1/debts/:id/confirm
 // Debt dikonfirmasi oleh pihak lawan (otherUserId == req.user.id)
 // Setelah confirm: debt asli + counterpart langsung jadi "confirmed"
+// PATCH /api/v1/debts/:id/confirm
+// // Debt dikonfirmasi oleh pihak lawan (otherUserId == req.user.id)
+// exports.confirmDebt = async (req, res, next) => {
+//   try {
+//     // Debt yang dikonfirmasi adalah milik orang lain, kita (otherUser) yang konfirmasi
+//     const debt = await Debt.findOne({ where: { id: req.params.id, otherUserId: req.user.id, status: 'pending' } });
+//     if (!debt) return res.status(404).json({ status: 'fail', message: 'Debt tidak ditemukan atau tidak bisa dikonfirmasi.' });
+
+//     // Update debt asli langsung menjadi confirmed
+//     debt.status = 'confirmed';
+//     await debt.save();
+
+//     res.status(200).json({
+//       status: 'success',
+//       message: 'Debt berhasil dikonfirmasi.',
+//       data: debt
+//     });
+//   } catch (err) { next(err); }
+// };
+
+// // POST /api/v1/debts/:id/settlement-request
+// // Hanya bisa jika status == confirmed
+// exports.requestSettlement = async (req, res, next) => {
+//   try {
+//     const debt = await Debt.findOne({
+//       where: { id: req.params.id, userId: req.user.id, status: 'confirmed' }
+//     });
+//     if (!debt) return res.status(404).json({ status: 'fail', message: 'Debt tidak ditemukan atau belum confirmed.' });
+
+//     // Cek duplikat pending settlement request
+//     const existing = await SettlementRequest.findOne({
+//       where: { debtId: debt.id, status: 'pending' }
+//     });
+//     if (existing) return res.status(400).json({ status: 'fail', message: 'Sudah ada settlement request yang sedang pending.' });
+
+//     const settlement = await SettlementRequest.create({
+//       debtId: debt.id,
+//       fromUserId: req.user.id,
+//       toUserId: debt.otherUserId
+//     });
+
+//     // Update status debt ke settlement_requested
+//     debt.status = 'settlement_requested';
+//     await debt.save();
+
+//     res.status(201).json({ status: 'success', data: settlement });
+//   } catch (err) { next(err); }
+// };
+
+// 1. B Konfirmasi Hutang (ACC)
 exports.confirmDebt = async (req, res, next) => {
   try {
-    // Debt yang dikonfirmasi adalah milik orang lain, kita (otherUser) yang konfirmasi
+    // Yang konfirmasi haruslah B (otherUserId)
     const debt = await Debt.findOne({ where: { id: req.params.id, otherUserId: req.user.id, status: 'pending' } });
-    if (!debt) return res.status(404).json({ status: 'fail', message: 'Debt tidak ditemukan atau tidak bisa dikonfirmasi.' });
+    if (!debt) return res.status(404).json({ status: 'fail', message: 'Data tidak valid' });
 
-    // Buat counterpart debt untuk diri sendiri (req.user)
-    const counterpart = await Debt.create({
-      userId: req.user.id,
-      otherUserId: debt.userId,
-      counterpartId: debt.id,
-      amount: debt.amount,
-      description: debt.description,
-      due_date: debt.due_date,
-      status: 'confirmed'
-    });
-
-    // Update debt asli: confirmed + simpan ref ke counterpart
     debt.status = 'confirmed';
-    debt.counterpartId = counterpart.id;
     await debt.save();
+    res.status(200).json({ status: 'success', data: debt });
+  } catch (err) { next(err); }
+};
 
-    res.status(200).json({
-      status: 'success',
-      message: 'Debt berhasil dikonfirmasi.',
-      data: { debt, counterpart }
-    });
+// 2. B Tolak Hutang (TOLAK)
+exports.rejectDebt = async (req, res, next) => {
+  try {
+    const debt = await Debt.findOne({ where: { id: req.params.id, otherUserId: req.user.id, status: 'pending' } });
+    if (!debt) return res.status(404).json({ status: 'fail', message: 'Data tidak valid' });
+
+    debt.status = 'rejected';
+    await debt.save();
+    res.status(200).json({ status: 'success', data: debt });
   } catch (err) { next(err); }
 };
 
 // POST /api/v1/debts/:id/settlement-request
-// Hanya bisa jika status == confirmed
 exports.requestSettlement = async (req, res, next) => {
   try {
+    // UBAH userId menjadi otherUserId di sini:
     const debt = await Debt.findOne({
-      where: { id: req.params.id, userId: req.user.id, status: 'confirmed' }
+      where: { id: req.params.id, otherUserId: req.user.id, status: 'confirmed' }
     });
+    
     if (!debt) return res.status(404).json({ status: 'fail', message: 'Debt tidak ditemukan atau belum confirmed.' });
-
-    // Cek duplikat pending settlement request
-    const existing = await SettlementRequest.findOne({
-      where: { debtId: debt.id, status: 'pending' }
-    });
-    if (existing) return res.status(400).json({ status: 'fail', message: 'Sudah ada settlement request yang sedang pending.' });
-
-    const settlement = await SettlementRequest.create({
-      debtId: debt.id,
-      fromUserId: req.user.id,
-      toUserId: debt.otherUserId
-    });
 
     // Update status debt ke settlement_requested
     debt.status = 'settlement_requested';
     await debt.save();
 
-    res.status(201).json({ status: 'success', data: settlement });
+    res.status(200).json({ status: 'success', data: debt });
+  } catch (err) { next(err); }
+};
+
+// 4. A Konfirmasi Pelunasan (Uang diterima, LUNAS)
+exports.confirmSettlement = async (req, res, next) => {
+  try {
+    // Yang berhak nge-ACC pelunasan adalah A (userId) selaku pemilik uang
+    const debt = await Debt.findOne({ where: { id: req.params.id, userId: req.user.id, status: 'settlement_requested' } });
+    if (!debt) return res.status(404).json({ status: 'fail', message: 'Data tidak valid' });
+
+    debt.status = 'settled';
+    await debt.save();
+    res.status(200).json({ status: 'success', data: debt });
+  } catch (err) { next(err); }
+};
+
+// 5. A Tolak Pelunasan (Uang belum masuk)
+exports.rejectSettlement = async (req, res, next) => {
+  try {
+    // Yang berhak nolak pelunasan adalah A (userId)
+    const debt = await Debt.findOne({ where: { id: req.params.id, userId: req.user.id, status: 'settlement_requested' } });
+    if (!debt) return res.status(404).json({ status: 'fail', message: 'Data tidak valid' });
+
+    // Balikin status ke confirmed karena pelunasan batal/ditolak
+    debt.status = 'confirmed';
+    await debt.save();
+
+    res.status(200).json({ status: 'success', data: debt });
   } catch (err) { next(err); }
 };
