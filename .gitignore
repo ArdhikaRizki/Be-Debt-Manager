@@ -28,4 +28,5 @@ temp/
 .idea/
 .vscode/
 
-src\utils\ServiceAccountKey.json
+# Service Account Keys
+src/utils/ServiceAccountKey.json
