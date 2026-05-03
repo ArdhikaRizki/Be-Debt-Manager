@@ -27,8 +27,11 @@ module.exports = (sequelize, DataTypes) => {
     password: DataTypes.STRING,
     is_verified: DataTypes.BOOLEAN,
     photo_path: DataTypes.STRING,
-    biometric_key: DataTypes.STRING
-
+    biometric_key: DataTypes.STRING,
+    fcm_token: {
+      type: DataTypes.STRING,
+      allowNull: true
+    }
   }, {
     sequelize,
     modelName: 'User',

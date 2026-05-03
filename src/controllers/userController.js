@@ -108,3 +108,31 @@ exports.deletePaymentMethod = async (req, res, next) => {
     res.status(200).json({ status: 'success', message: 'Metode pembayaran berhasil dihapus.' });
   } catch (err) { next(err); }
 };
+
+// Update FCM Token untuk user yang sedang login
+exports.updateFcmToken = async (req, res, next) => {
+  try {
+    const { fcm_token } = req.body;
+    
+    if (!fcm_token) {
+      return res.status(400).json({ status: 'fail', message: 'FCM Token wajib diisi.' });
+    }
+
+    // req.user.id didapat dari middleware protect
+    const user = await User.findByPk(req.user.id);
+    
+    if (!user) {
+      return res.status(404).json({ status: 'fail', message: 'User tidak ditemukan.' });
+    }
+
+    user.fcm_token = fcm_token;
+    await user.save();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'FCM Token berhasil diperbarui.'
+    });
+  } catch (err) {
+    next(err);
+  }
+};

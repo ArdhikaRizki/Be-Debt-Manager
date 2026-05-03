@@ -12,5 +12,6 @@ router.get('/me/payment-methods', ctrl.listPaymentMethods);
 router.post('/me/payment-methods', ctrl.createPaymentMethod);
 router.patch('/me/payment-methods/:id', ctrl.updatePaymentMethod);
 router.delete('/me/payment-methods/:id', ctrl.deletePaymentMethod);
+router.patch('/me/fcm-token', ctrl.updateFcmToken);
 
 module.exports = router;
