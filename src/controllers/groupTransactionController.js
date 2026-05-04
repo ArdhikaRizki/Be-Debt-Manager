@@ -1,4 +1,4 @@
-const { GroupTransaction, GroupMember, DebtGroup, User } = require('../../models');
+const { GroupTransaction, GroupMember, DebtGroup, User, SettlementRequest } = require('../../models');
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 const isMember = async (groupId, userId) => {
@@ -15,7 +15,8 @@ exports.listTransactions = async (req, res, next) => {
       where: { groupId: req.params.groupId },
       include: [
         { model: User, as: 'fromUser', attributes: ['id', 'username'] },
-        { model: User, as: 'toUser', attributes: ['id', 'username'] }
+        { model: User, as: 'toUser', attributes: ['id', 'username'] },
+        { model: SettlementRequest, as: 'settlementRequests', attributes: ['id', 'status'] }
       ],
       order: [['createdAt', 'DESC']]
     });

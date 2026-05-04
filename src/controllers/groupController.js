@@ -17,7 +17,16 @@ exports.listGroups = async (req, res, next) => {
   try {
     const memberships = await GroupMember.findAll({
       where: { userId: req.user.id },
-      include: [{ model: DebtGroup, as: 'group', include: [{ model: User, as: 'creator', attributes: ['id', 'username'] }] }]
+      include: [
+        { 
+          model: DebtGroup, 
+          as: 'group', 
+          include: [
+            { model: User, as: 'creator', attributes: ['id', 'username'] },
+            { model: GroupMember, as: 'members' }
+          ] 
+        }
+      ]
     });
     const groups = memberships.map(m => m.group);
     res.status(200).json({ status: 'success', data: groups });
